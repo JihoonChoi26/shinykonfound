@@ -12,7 +12,6 @@ library(shinyDarkmode)
 
 ################################################################################
 
-
 jscode <- "shinyjs.refresh_page = function() { history.go(0); }" 
 
 
@@ -28,9 +27,9 @@ server <- function(input, output, session) {
            autoMatchOsTheme = TRUE
   )
   
-  ############################################# 
+  ############################################## 
   ###### GENERATE LINEAR RIR/ITCV RESULTS ###### 
-  #############################################
+  ##############################################
   
   #validate user input values to make sure they are 1) numeric and 2) more than 3 covariate for all model types
   df <- eventReactive(input$results_pg_l, {
@@ -53,7 +52,7 @@ server <- function(input, output, session) {
                                        as.numeric(input$n_obs), 
                                        as.numeric(input$n_covariates),
                                        index = "RIR",
-                                       to_return = c(c("print", "corr_plot"))))
+                                       to_return = "print"))
     }
     if(input$AnalysisL == "IT"){
       linear_output <- capture.output(pkonfound(as.numeric(input$unstd_beta), 
@@ -61,7 +60,7 @@ server <- function(input, output, session) {
                                                 as.numeric(input$n_obs), 
                                                 as.numeric(input$n_covariates),
                                                 index = "IT",
-                                                to_return = c(c("print", "thresh_plot"))))
+                                                to_return = "print"))
     }
     if(input$AnalysisL == "RIR"){
       linear_plot <- pkonfound(as.numeric(input$unstd_beta), 
@@ -80,77 +79,85 @@ server <- function(input, output, session) {
                                                 to_return = "corr_plot")
     }
     
-    print(list(linear_output, linear_plot))
-    list(linear_output, linear_plot)
+    # Return both text and plot separately
+    list(text = linear_output, plot = linear_plot)
   })
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
   
   ############################################# 
-  ###### GENERATE LINEAR COP RESULTS ###### 
+  ###### GENERATE LINEAR COP RESULTS ########## 
   #############################################
   
   #validate user input values to make sure they are 1) numeric and 2) more than 3 covariate for all model types
   df_cop <- eventReactive(input$results_pg_cop, {
     
-    #validating user input is numeric
+    # Validate user input
     validate(
-      need(is.numeric(input$unstd_beta_cop) &
-             is.numeric(input$std_err_cop) &
-             is.numeric(input$n_obs_cop) &
-             is.numeric(input$sdx_cop) &
-             is.numeric(input$sdy_cop) &
-             is.numeric(input$R2_cop) &
-             is.numeric(input$eff_thr_cop) &
-             is.numeric(input$FR2max_cop) &
-             is.numeric(input$n_covariates_cop), "Did not run! Did you enter numbers for the estimated effect, standard error, number of observations, and number of covariates? Please change any of these that are not to a number."),
-      need(input$n_obs_cop > (input$n_covariates_cop + 2), "Did not run! There are too few observations relative to the number of observations and covariates. Please specify a less complex model to use KonFound-It."),
-      need(input$sdx_cop > 0, "Did not run! Standard deviation of x needs to be greater than zero."),
-      need(input$sdy_cop > 0, "Did not run! Standard deviation of y needs to be greater than zero."),
-      need(input$std_err_cop > 0, "Did not run! Standard error needs to be greater than zero."),
-      need(input$R2_cop > 0, "Did not run! R2 needs to be greater than zero."),
-      need(input$R2_cop < 1, "Did not run! R2 needs to be less than one"),
-      need(input$FR2max_cop < 1, "Did not run! R2 Max needs to be less than 1."),
-      need(input$FR2max_cop > input$R2_cop, "Did not run! R2 Max needs to be greater than R2."),
-      need(1-((input$sdy_cop^2/input$sdx_cop^2)*(1-input$R2_cop)/((input$n_obs_cop - input$n_covariates_cop - 2)*input$std_err_cop^2)) >0, "Did not run! Entered values produced Rxz^2 <0, consider adding more significant digits to your entered values")
+      need(is.numeric(input$unstd_beta_cop) & 
+             is.numeric(input$std_err_cop) & 
+             is.numeric(input$n_obs_cop) & 
+             is.numeric(input$sdx_cop) & 
+             is.numeric(input$sdy_cop) & 
+             is.numeric(input$R2_cop) & 
+             is.numeric(input$eff_thr_cop) & 
+             is.numeric(input$FR2max_cop) & 
+             is.numeric(input$n_covariates_cop), 
+           "Did not run! Did you enter numbers for the estimated effect, standard error, number of observations, and number of covariates? Please change any of these that are not to a number."),
+      need(input$n_obs_cop > (input$n_covariates_cop + 2), 
+           "Did not run! There are too few observations relative to the number of observations and covariates. Please specify a less complex model to use KonFound-It."),
+      need(input$sdx_cop > 0, 
+           "Did not run! Standard deviation of x needs to be greater than zero."),
+      need(input$sdy_cop > 0, 
+           "Did not run! Standard deviation of y needs to be greater than zero."),
+      need(input$std_err_cop > 0, 
+           "Did not run! Standard error needs to be greater than zero."),
+      need(input$R2_cop > 0, 
+           "Did not run! R2 needs to be greater than zero."),
+      need(input$R2_cop < 1, 
+           "Did not run! R2 needs to be less than one"),
+      need(input$FR2max_cop < 1, 
+           "Did not run! R2 Max needs to be less than 1."),
+      need(input$FR2max_cop > input$R2_cop, 
+           "Did not run! R2 Max needs to be greater than R2."),
+      need(1 - ((input$sdy_cop^2 / input$sdx_cop^2) * (1 - input$R2_cop) / ((input$n_obs_cop - input$n_covariates_cop - 2) * input$std_err_cop^2)) > 0, 
+           "Did not run! Entered values produced Rxz^2 < 0, consider adding more significant digits to your entered values")
     )
     
-    #if statements needed for linear printed output and figure
-    cop_output <- capture.output(pkonfound(as.numeric(input$unstd_beta_cop),
-                                                as.numeric(input$std_err_cop),
-                                                as.numeric(input$n_obs_cop),
-                                                as.numeric(input$n_covariates_cop),
-                                                sdx = as.numeric(input$sdx_cop),
-                                                sdy = as.numeric(input$sdy_cop),
-                                                R2 = as.numeric(input$R2_cop),
-                                                eff_thr = as.numeric(input$eff_thr_cop),
-                                                FR2max = as.numeric(input$FR2max_cop),
-                                                index = "COP",
-                                                to_return = c(c("print"))))
+    # Generate the printed output
+    cop_output <- capture.output(
+      pkonfound(
+        as.numeric(input$unstd_beta_cop),
+        as.numeric(input$std_err_cop),
+        as.numeric(input$n_obs_cop),
+        as.numeric(input$n_covariates_cop),
+        sdx = as.numeric(input$sdx_cop),
+        sdy = as.numeric(input$sdy_cop),
+        R2 = as.numeric(input$R2_cop),
+        eff_thr = as.numeric(input$eff_thr_cop),
+        FR2max = as.numeric(input$FR2max_cop),
+        index = "COP",
+        to_return = "print"
+      )
+    )
     
-    cop_plot <- pkonfound(as.numeric(input$unstd_beta_cop),
-                                                as.numeric(input$std_err_cop),
-                                                as.numeric(input$n_obs_cop),
-                                                as.numeric(input$n_covariates_cop),
-                                                sdx = as.numeric(input$sdx_cop),
-                                                sdy = as.numeric(input$sdy_cop),
-                                                R2 = as.numeric(input$R2_cop),
-                                                eff_thr = as.numeric(input$eff_thr_cop),
-                                                FR2max = as.numeric(input$FR2max_cop),
-                                                index = "COP",
-                                                to_return = "raw_output")
+    # Generate the plot output
+    cop_plot <- pkonfound(
+      as.numeric(input$unstd_beta_cop),
+      as.numeric(input$std_err_cop),
+      as.numeric(input$n_obs_cop),
+      as.numeric(input$n_covariates_cop),
+      sdx = as.numeric(input$sdx_cop),
+      sdy = as.numeric(input$sdy_cop),
+      R2 = as.numeric(input$R2_cop),
+      eff_thr = as.numeric(input$eff_thr_cop),
+      FR2max = as.numeric(input$FR2max_cop),
+      index = "COP",
+      to_return = "raw_output"  
+    )
     
-    
-    print(list(cop_output, cop_plot))
-    list(cop_output, cop_plot)
+    # Return both text and plot outputs as a list
+    list(text = cop_output, plot = cop_plot)
   })
   
   ############################################# 
@@ -180,29 +187,26 @@ server <- function(input, output, session) {
       )
     
     
-    #if statements needed for linear printed output and figure
-    if(input$AnalysisL == "PSE"){
-      linear_output <- capture.output(pkonfound(as.numeric(input$unstd_beta_pse),
-                                                as.numeric(input$std_err_pse),
-                                                as.numeric(input$n_obs_pse),
-                                                n_covariates = as.numeric(input$n_covariates_pse),
-                                                eff_thr = as.numeric(input$eff_thr_pse),
-                                                sdx = as.numeric(input$sdx_pse),
-                                                sdy = as.numeric(input$sdy_pse),
-                                                R2 = as.numeric(input$R2_pse),
-                                                index = "PSE",
-                                                to_return = "print"))
-    }
+    # Generate the printed output
+    pse_output <- capture.output(
+      pkonfound(
+        as.numeric(input$unstd_beta_pse),
+        as.numeric(input$std_err_pse),
+        as.numeric(input$n_obs_pse),
+        n_covariates = as.numeric(input$n_covariates_pse),
+        eff_thr = as.numeric(input$eff_thr_pse),
+        sdx = as.numeric(input$sdx_pse),
+        sdy = as.numeric(input$sdy_pse),
+        R2 = as.numeric(input$R2_pse),
+        index = "PSE",
+        to_return = "print"
+      )
+    )
     
-    if(input$AnalysisL == "PSE"){
-      pse_plot <- HTML(paste("No graphical output for this analysis"))
-    }
-    print(list(linear_output, pse_plot))
-    list(linear_output, pse_plot)
+    list(text = pse_output, plot_message = "No graphical output for this analysis.")
   })
   
 
-  
   ######################################### 
   ###### GENERATE LOGISTIC RESULTS  ###### 
   ######################################### 
@@ -221,22 +225,26 @@ server <- function(input, output, session) {
       need(input$std_error_nl > 0, "Did not run! Standard error needs to be greater than zero.")
     )
     
-    out <- pkonfound(input$unstd_beta_nl, 
-                     input$std_error_nl, 
-                     input$n_obs_nl, 
-                     input$n_covariates,
-                     n_treat = input$n_trm_nl, 
-                     model_type = "logistic",
-                     to_return = "raw_output")
-    print(out)
-    out
-  })
-  
+    # Run the logistic model function and capture both raw and print outputs
+    log_output <- capture.output(
+      pkonfound(input$unstd_beta_nl, 
+                input$std_error_nl, 
+                input$n_obs_nl, 
+                input$n_covariates_nl,
+                n_treat = input$n_trm_nl, 
+                model_type = "logistic",
+                to_return = "print")
+    )
+    
+    # Return a list containing both the raw and print outputs
+    list(text = log_output, plot_message = "No graphical output for this analysis.")
+    })
   
   ######################################### 
   ######### GENERATE 2x2 RESULTS  ######### 
   ######################################### 
   
+# If user presses the results button for 2x2 tables, show the 2x2 tables
   df_twobytwo <- eventReactive(input$results_pg_2x2, {
     validate(
       need(is.numeric(input$ctrl_fail) &
@@ -244,174 +252,106 @@ server <- function(input, output, session) {
              is.numeric(input$treat_fail) &
              is.numeric(input$treat_success),
            "Did not run! Did you enter numbers for the input values? Please change any of these that are not to a number."),
-      need(input$std_error_nl > 0, "Did not run! Standard error needs to be greater than zero."),
       need(input$ctrl_fail > 0, "Did not run! Control Condition: Result Failure needs to be greater than zero"),
       need(input$ctrl_success > 0, "Did not run! Control Condition: Result Success needs to be greater than zero"),
       need(input$treat_fail > 0, "Did not run! Treatment Condition: Result Failure needs to be greater than zero"),
-      need(input$treat_success > 0, "Did not run! Treatment Condition: Result Sucesss needs to be greater than zero")
+      need(input$treat_success > 0, "Did not run! Treatment Condition: Result Success needs to be greater than zero")
     )
     
-    out <- pkonfound(a = input$ctrl_fail, 
-                     b = input$ctrl_success, 
-                     c = input$treat_fail, 
-                     d = input$treat_success,
-                     to_return = "raw_output")
-    print(out)
-    out
-
+    # Capture the full output of the pkonfound function as a single string with proper line breaks
+    twobytwo_output <- capture.output(
+      pkonfound(a = input$ctrl_fail, 
+                b = input$ctrl_success, 
+                c = input$treat_fail, 
+                d = input$treat_success,
+                to_return = "print")
+      )
+    
+    # Return the full output as a single concatenated string with line breaks
+    list(text = twobytwo_output, plot_message = "No graphical output for this analysis.")
   })
 
 
   
   
   
-  ################################### 
+  ##################################### 
   ###### GENERATE PRINTED OUTPUT ###### 
-  ###################################
+  #####################################
   
   r <- reactiveValues(print_results = "") #create empty reactive string for printed results.
   
-  #If user presses the results button for linear models, paste the linear results
-  observeEvent(input$results_pg_l, {
-    r$print_results <- renderText(paste0(df()[[1]][2], df()[[1]][3], df()[[1]][4], " ", df()[[1]][5], " ", df()[[1]][6], df()[[1]][7]))
-  })
-  
-  #If user presses the results button for cop models, paste the cop results
-  observeEvent(input$results_pg_cop, {
-    r$print_results <- renderText(df_cop()[[1]])
-  })
-  
-  #If user presses the results button for pse models, paste the pse results
-  observeEvent(input$results_pg_pse, {
-    r$print_results <- renderText(df_pse()[[1]])
-  })
-  
-  
-  #If user presses the results button for pse models, paste the pse results
-observeEvent(input$results_pg_di, {
-  r$print_results <- renderText(paste0(df_log()[[1]], df_log()[[2]], df_log()[[3]]))
-})
-    
-  
-    
-  #   r$print_results <- paste(df_log()[[5]][1], df_log()[[6]][1], "<br>", "<br>", df_log()[[1]][1], df_log()[[2]][1], stringr::str_remove(df_log()[[3]][1], "\\.$"), "(Fragility).",
-  #                            "<br>", df_log()[[10]][1])
-  
-  
-  #If user presses the results button for 2x2 tables, paste the 2x2 results
-  observeEvent(input$results_pg_2x2, {
-    r$print_results <-renderText(paste0(df_twobytwo()[[1]][1], df_twobytwo()[[2]][1], df_twobytwo()[[3]][1], df_twobytwo()[[4]][1], stringr::str_remove(df_twobytwo()[[5]][1], "\\.$"), " (Fragility)."))
-  })
-  
-  #observe event and print results for whichever button the user presses
-  output$print_results <- renderUI(r$print_results)
-  
-  
-  
-  
-  ######################################### 
-  ##### GENERATE FIGURES/PLOTS OUTPUT #####
-  ################################### #####
-  
-  p <- reactiveValues(fig_results = "") #create empty reactive string for figure results.
-  
-  #If user presses the results button for linear models, show the figure results
-  observeEvent(input$results_pg_l, {
-    output$fig_results <- renderPlot(df()[[2]])
-    p$fig_results <- plotOutput("fig_results")
-  })
-  
-  #If user presses the results button for cop models, show the figure results
-  observeEvent(input$results_pg_cop, {
-    output$fig_results <- renderPlot(df_cop()[[2]])
-    p$fig_results <- plotOutput("fig_results")
-  })
-  
-  #If user presses the results button for pse model, no figure is shown
-  observeEvent(input$results_pg_pse, {
-    p$fig_results <- renderUI(df_pse()[[2]])
-  })
-  
-  #If user presses the results button for logistic models, show the logistic tables
-  observeEvent(input$results_pg_di, {
-    
-    a <- renderTable(df_log()$Implied_Table, digits = 0, rownames = TRUE, bordered = FALSE, colnames = TRUE)
-    b <- renderTable(df_log()$Transfer_Table, digits = 0, rownames = TRUE, bordered = FALSE, colnames = TRUE)
-
-    
-    p$fig_results <- c(renderUI(HTML(paste("<i>Implied Table</i>"))), a,  renderUI(HTML(paste("<i>Transfer Table</>"))), b)
-    
-  })
-  
-  #If user presses the results button for 2x2 tables, show the 2x2 tables
-  observeEvent(input$results_pg_2x2, {
-    
-    a <- renderTable(df_twobytwo()$User_enter_value, digits = 0, rownames = TRUE, bordered = FALSE, colnames = TRUE)
-    b <- renderTable(df_twobytwo()$Transfer_Table, digits = 0, rownames = TRUE, bordered = FALSE, colnames = TRUE)
-    
-    p$fig_results <- c(renderUI(HTML(paste("<i>Implied Table</i>"))), a,  renderUI(HTML(paste("<i>Transfer Table</>"))), b)
-
-  })
-  
-  #observe event and show figure results for whichever button the user presses
-  output$print_fig <- renderUI(p$fig_results)
-  
-
-
-  #Display RIR value below figure/output
-  rir <- reactiveValues(print_rir = "") #create empty reactive string for printed results.
 
   #If user presses the results button for linear models, paste the linear results
   observeEvent(input$results_pg_l, {
-    if(req(input$AnalysisL) == "RIR"){
-      e <- df()[[1]][6] #extracts the printed results with the RIR value (element 1, row 6)
-      f <- clean_strings(e) #removes special characters (e.g., /.,)
-      g <- strsplit(f, " ")[[1]][8] #extracts the 8th element which is the RIR value
-      rir$print_rir <- 
-        renderUI(HTML(paste("<b>Robustness of Inference to Replacement (RIR):</b>", " ", g)))
-    }
-    else{
-      rir$print_rir <- renderUI(paste(" "))
-    }
+    output$print_results <- renderText({
+      df_l_text <- df()$text
+      paste(df_l_text, collapse = "\n")  # Combine text output lines
+    })
+    output$fig_results <- renderPlot({
+      df()$plot  # Render the plot output 
+    })
   })
   
-  observeEvent(input$results_pg_di, {
-    if(req(input$Analysis) == "RIR"){
-      rir$print_rir <- renderUI(HTML(paste("<b>Robustness of Inference to Replacement (RIR):</b>", " ", df_log()$RIR[1])))
-    }
-    else{
-      rir$print_rir <- renderUI(paste(" "))
-    }
-  })
   
-  observeEvent(input$results_pg_2x2, {
-    if(req(input$Analysis) == "RIR"){
-      rir$print_rir <- renderUI(HTML(paste("<b>Robustness of Inference to Replacement (RIR):</b>", " ", df_twobytwo()$RIR[1])))
-    }
-    else{
-      rir$print_rir <- renderUI(paste(" "))
-    }
-  })
-  
-  observeEvent(input$results_pg_pse, {
-    if(req(input$AnalysisL) == "PSE"){
-      rir$print_rir <- renderUI(paste(" "))
-    }
-  })
-  
+  #If user presses the results button for COP models, paste the COP results
   observeEvent(input$results_pg_cop, {
-    if(req(input$AnalysisL) == "COP"){
-      rir$print_rir <- renderUI(paste(" "))
-    }
+    output$print_results <- renderText({
+      df_cop_text <- df_cop()$text
+      paste(df_cop_text, collapse = "\n")  # Combine text output lines
+    })
+    output$fig_results <- renderPlot({
+      df_cop()$plot  # Render the plot output 
+    })
   })
-
-
-  #observe event and print results for whichever button the user presses
-  output$print_rir <- renderUI(
-    rir$print_rir)
-
-
-
+  
+  
+  #If user presses the results button for PSE models, paste the PSE results
+  observeEvent(input$results_pg_pse, {
+    output$print_results <- renderText({
+      df_pse_text <- df_pse()$text
+      paste(df_pse_text, collapse = "\n")  # Combine text output lines
+    })
+    
+    # Render a dummy plot with text message
+    output$fig_results <- renderPlot({
+      message <- df_pse()$plot_message
+      plot.new()
+      text(0.5, 0.5, message, cex = 1.5, col = "black", font = 1.8)    
+    })
+  })
+  
+  #If user presses the results button for logistic models, paste the logistic results
+  observeEvent(input$results_pg_di, {
+    output$print_results <- renderText({
+      df_log_text <- df_log()$text
+      paste(df_log_text, collapse = "\n")  # Combine text output lines
+    })
+    
+    # Render a dummy plot with text message
+    output$fig_results <- renderPlot({
+      message <- df_log()$plot_message
+      plot.new()
+      text(0.5, 0.5, message, cex = 1.5, col = "black", font = 1.8)    
+    })
+  })
+  
+  
+  # Generate 2x2 results when button is pressed
+  observeEvent(input$results_pg_2x2, {
+    output$print_results <- renderText({
+      df_twobytwo_text <- df_twobytwo()$text
+      paste(df_twobytwo_text, collapse = "\n")  # Combine text output lines
+    })
+    
+    # Render a dummy plot with text message
+    output$fig_results <- renderPlot({
+      message <- df_twobytwo()$plot_message
+      plot.new()
+      text(0.5, 0.5, message, cex = 1.5, col = "black", font = 1.8)    
+    })
+  })
+  
   
   
   ################################### 
@@ -510,28 +450,62 @@ observeEvent(input$results_pg_di, {
   
   #generate r code for linear models using user input values
   s_user_est_l <- eventReactive(input$results_pg_l, {
-    paste0("ssc install konfound", "\n", "ssc install indeplist", "\n", "ssc install moss", "\n", "ssc install matsort", "\n","pkonfound ", input$unstd_beta, " ", input$std_error, " ", input$n_obs, " ", input$n_covariates)
-  })
+    paste0(
+      "ssc install konfound", "\n", 
+      "ssc install indeplist", "\n", 
+      "ssc install moss", "\n", 
+      "ssc install matsort", "\n", 
+      "pkonfound ", input$unstd_beta, " ", input$std_error, " ", 
+      input$n_obs, " ", input$n_covariates, ", model_type(0) indx(", input$AnalysisL, ")"
+    )  
+    })
+
+
   
   #generate r code for logistic models using user input values
   s_user_est_di <- eventReactive(input$results_pg_di, {
-    paste0("Coming soon")
-  })
+    paste0(
+      "ssc install konfound", "\n", 
+      "pkonfound ", input$unstd_beta_nl, " ", input$std_error_nl, " ", 
+      input$n_obs_nl, " ", input$n_covariates_nl, " ", input$n_trm_nl, 
+      ", model_type(1)"
+    ) 
+    })
+
   
   #generate r code for 2x2 tables using user input values
   s_user_est_2x2 <- eventReactive(input$results_pg_2x2, {
-    paste0("Coming soon")
-  })
+    paste0(
+      "ssc install konfound", "\n", 
+      "pkonfound ", input$ctrl_fail, " ", input$ctrl_success, " ", 
+      input$treat_fail, " ", input$treat_success, ", model_type(2)"
+    ) 
+    })
+  
+
   
   s_user_est_cop <- eventReactive(input$results_pg_cop, {
-    paste0("Coming soon")
-  })
+    paste0(
+      "ssc install konfound", "\n", 
+      "pkonfound ", input$unstd_beta_cop, " ", input$std_err_cop, " ", 
+      input$n_obs_cop, " ", input$n_covariates_cop, " ", 
+      input$sdx_cop, " ", input$sdy_cop, " ", input$R2_cop, 
+      ", eff_thr(", input$eff_thr_cop, ") fr2max(", input$FR2max_cop, ") indx(COP)"
+    )
+    })
   
-  #generate r code for PSE
+
+    
   s_user_est_pse <- eventReactive(input$results_pg_pse, {
-    paste0("Coming soon")
-  })
-  
+    paste0(
+      "ssc install konfound", "\n", 
+      "pkonfound ", input$unstd_beta_pse, " ", input$std_err_pse, " ", 
+      input$n_obs_pse, " ", input$n_covariates_pse, " ", 
+      input$eff_thr_pse, " ", input$sdx_pse, " ", input$sdy_pse, 
+      " ", input$R2_pse, ", eff_thr(", input$eff_thr_pse, ") indx(PSE)"
+    )
+    })
+
   
   #conditional statement to display the correct stata code based on model type
   select_stata_code <- reactive({
