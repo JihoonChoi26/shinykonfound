@@ -839,16 +839,17 @@ shinyUI(
                               align = "center",
                               h3("Results")),
                               
-                              wellPanel(p(h4("Text Output")),
-                                        htmlOutput("print_results")
+                              wellPanel(
+                                p(h4("Text Output")),
+                                verbatimTextOutput("print_results")  
                               ),
                               
-                              wellPanel(p(h4("Graphic Output")),
-                                        uiOutput("print_fig", width = "50%"),
-                                        uiOutput("print_rir")
+                              wellPanel(
+                                p(h4("Graphic Output")),
+                                plotOutput("fig_results"),
+                                #uiOutput("print_rir")
                               ),
-                            
-                            
+                                                        
                             
                             wellPanel(p(h4("Would you like to generate source code?")),
                                       checkboxInput("gen_r_code", "Generate R Code"),
