@@ -8,8 +8,11 @@ library(fedmatch)
 # remotes::install_github("deepanshu88/shinyDarkmode")
 library(shinyDarkmode)
 
-library(konfound)
+if (!requireNamespace("devtools", quietly = TRUE)) install.packages("devtools")
+library(devtools)
+install_github("konfound-project/konfound", ref = "additional_output_list", force = TRUE)
 
+library(konfound)
 ################################################################################
 
 jscode <- "shinyjs.refresh_page = function() { history.go(0); }" 
@@ -345,24 +348,68 @@ server <- function(input, output, session) {
     )
     
     # Run the logistic model function and capture both raw and print outputs
-    log_output <- capture.output(
-      pkonfound(input$unstd_beta_nl, 
-                input$std_error_nl, 
-                input$n_obs_nl, 
-                input$n_covariates_nl,
-                n_treat = input$n_trm_nl, 
+    raw_calc <- 
+      pkonfound(as.numeric(input$unstd_beta_nl), 
+                as.numeric(input$std_error_nl), 
+                as.numeric(input$n_obs_nl), 
+                n_covariates = as.numeric(input$n_covariates_nl),
+                n_treat = as.numeric(input$n_trm_nl),
                 model_type = "logistic",
-                to_return = "print")
-    )
+                to_return = "raw_output")
     
-    # Return a list containing both the raw and print outputs
-    list(text = log_output, 
-         plot_message = "No graphical output for this analysis.")
-  })
-  
-  
-  
-  
+    log_output <- 
+      HTML(
+        paste0(
+          "<strong>Robustness of Inference to Replacement (RIR):</strong><br>",
+          "RIR = ", raw_calc$RIR_primary, "<br>",
+          "Fragility = ", raw_calc$fragility_primary, "<br><br>",
+          
+          "The table below is implied by the parameter estimates and sample sizes you entered:<br>",
+          "<strong><u>User-Entered Table:</u></strong><br>",
+          knitr::kable(raw_calc$table_start_3x3, format = "html", align = "c",
+                       table.attr = "style='width:100%;'",
+                       col.names = c("Group", "Failures", "Successes", "Success Rate")), 
+          "<br><br>",
+          
+          "The reported log odds = ", round(raw_calc$est_eff, 3), ", SE = ", round(raw_calc$user_std_err, 3),
+          ", and p-value = ", formatC(raw_calc$p_start, format = "e", digits = 3), ".<br>",
+          "Values in the table have been rounded to the nearest integer. This may cause a small change to the estimated effect for the table.<br><br>",
+          
+          "To invalidate the inference that the effect is different from 0 (alpha = 0.050),<br>",
+          "one would need to transfer ", raw_calc$fragility_primary, " data points from treatment success to treatment failure (Fragility = ", raw_calc$fragility_primary, ").<br>",
+          "This is equivalent to replacing ", raw_calc$total_RIR, " (", round(raw_calc$RIR_perc, 2), "%) treatment success data points with data points<br>",
+          "for which the probability of failure in the entire sample (", round(raw_calc$p_destination, 3), "%) applies (RIR = ", raw_calc$RIR_primary, ").<br><br>",
+          
+          "<strong>Note that RIR = Fragility / P(destination)</strong><br><br>",
+          
+          "<strong><u>Transfer Table (After Adjusting Data Points):</u></strong><br>",
+          knitr::kable(raw_calc$table_final_3x3, format = "html", align = "c",
+                       table.attr = "style='width:100%;'",
+                       col.names = c("Group", "Failures", "Successes", "Success Rate")), 
+          "<br><br>",
+          
+          "The log odds (estimated effect) = ", round(raw_calc$est_eff_final, 3), 
+          ", SE = ", round(raw_calc$std_err_final, 3), ", p-value = ", round(raw_calc$p_final, 3), ".<br>",
+          "This is based on t = estimated effect / standard error.<br><br>",
+          
+          "<strong>See Frank et al. (2021) for a description of the methods.</strong><br><br>",
+          
+          "<strong>Citation:</strong><br>",
+          "*Frank, K. A., *Lin, Q., *Maroulis, S., *Mueller, A. S., Xu, R., Rosenberg, J. M., ... & Zhang, L. (2021).<br>",
+          "<em>Hypothetical case replacement can be used to quantify the robustness of trial results.</em><br>",
+          "<em>Journal of Clinical Epidemiology, 134, 150-159.</em><br>",
+          "*Authors are listed alphabetically.<br><br>",
+          
+          "<strong>Accuracy of results increases with the number of decimals entered.</strong><br><br>",
+          
+          "<em>Calculated with konfound R package version </em>", packageVersion("konfound")
+        )
+      )
+    
+  # Return a list containing both the raw and print outputs
+  list(text = log_output,
+       plot_message = "No graphical output for this analysis.")
+   })
   
   
 ################################################################################
@@ -551,7 +598,7 @@ server <- function(input, output, session) {
     })
   })
   
-  
+
   #If user presses the results button for logistic models, paste the logistic results
   observeEvent(input$results_pg_di, {
     output$print_results1 <- renderText({
@@ -560,15 +607,15 @@ server <- function(input, output, session) {
     output$print_results2 <- renderText({
       paste(df_log()$text, collapse = "\n")  # Combine text output lines
     })
-    
+
     # Render a dummy plot with text message
     output$fig_results <- renderPlot({
       message <- df_log()$plot_message
       plot.new()
-      text(0.5, 0.5, message, cex = 1.5, col = "black", font = 1.8)    
+      text(0.5, 0.5, message, cex = 1.5, col = "black", font = 1.8)
     })
   })
-  
+
   
   
   # Generate 2x2 results when button is pressed
