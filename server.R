@@ -222,29 +222,41 @@ server <- function(input, output, session) {
     
     
     # Generate the printed output
-    pse_output <- capture.output(
-      pkonfound(
-        as.numeric(input$unstd_beta_pse),
-        as.numeric(input$std_err_pse),
-        as.numeric(input$n_obs_pse),
-        n_covariates = as.numeric(input$n_covariates_pse),
-        eff_thr = as.numeric(input$eff_thr_pse),
-        sdx = as.numeric(input$sdx_pse),
-        sdy = as.numeric(input$sdy_pse),
-        R2 = as.numeric(input$R2_pse),
-        index = "PSE",
-        to_return = "print"
+    raw_calc <- pkonfound(
+      as.numeric(input$unstd_beta_pse),
+      as.numeric(input$std_err_pse),
+      as.numeric(input$n_obs_pse),
+      n_covariates = as.numeric(input$n_covariates_pse),
+      eff_thr = as.numeric(input$eff_thr_pse),
+      sdx = as.numeric(input$sdx_pse),
+      sdy = as.numeric(input$sdy_pse),
+      R2 = as.numeric(input$R2_pse),
+      index = "PSE",
+      to_return = "raw_output"
+    )
+    
+    pse_output <- HTML(
+      paste0(
+        "<strong>Partial Sensitivity Analysis (PSE):</strong><br><br>",
+        
+        "This function calculates the correlations associated with a confound that generates an estimated effect 
+      approximately equal to the threshold while preserving the standard error.<br><br>",
+        
+        "<strong>Correlation between X and CV:</strong> ", round(raw_calc$`correlation between X and CV`, 3), "<br>",
+        "<strong>Correlation between Y and CV:</strong> ", round(raw_calc$`correlation between Y and CV`, 3), "<br><br>",
+        
+        "<strong>Conditional on covariates (Z):</strong><br>",
+        "<strong>Correlation between X and CV:</strong> ", round(raw_calc$`correlation between X and CV conditional on Z`, 3), "<br>",
+        "<strong>Correlation between Y and CV:</strong> ", round(raw_calc$`correlation between Y and CV conditional on Z`, 3), "<br><br>",
+        
+        "Including such a CV, the coefficient changes to ", round(raw_calc$eff_M3, 3), 
+        ", with a standard error of ", round(raw_calc$se_M3, 3), ".<br>"
       )
     )
     
     list(text = pse_output, 
          plot_message = "No graphical output for this analysis.")
   })
-  
-  
-  
-  
-  
   
   
 ################################################################################
@@ -287,20 +299,36 @@ server <- function(input, output, session) {
     )
     
     # Generate the printed output
-    cop_output <- capture.output(
-      pkonfound(
-        as.numeric(input$unstd_beta_cop),
-        as.numeric(input$std_err_cop),
-        as.numeric(input$n_obs_cop),
-        as.numeric(input$n_covariates_cop),
-        sdx = as.numeric(input$sdx_cop),
-        sdy = as.numeric(input$sdy_cop),
-        R2 = as.numeric(input$R2_cop),
-        eff_thr = as.numeric(input$eff_thr_cop),
-        FR2max = as.numeric(input$FR2max_cop),
-        index = "COP",
-        to_return = "print"
-      )
+    # Capture raw output from pkonfound
+    raw_calc <- pkonfound(
+      est_eff = as.numeric(input$unstd_beta_cop),
+      std_err = as.numeric(input$std_err_cop),
+      n_obs = as.numeric(input$n_obs_cop),
+      n_covariates = as.numeric(input$n_covariates_cop),
+      eff_thr = as.numeric(input$eff_thr_cop),
+      sdx = as.numeric(input$sdx_cop),
+      sdy = as.numeric(input$sdy_cop),
+      R2 = as.numeric(input$R2_cop),
+      FR2max = as.numeric(input$FR2max_cop),
+      index = "COP",  
+      to_return = "raw_output"
+    )
+    
+    # Generate the clean print output based on raw_calc
+    cop_output <- HTML(
+      paste0(
+        "<strong>Coefficient of Proportionality (COP):</strong><br><br>",
+        "This function calculates a correlation-based coefficient of proportionality (delta) as well as Oster's delta*.<br>",
+        "Using the absolute value of the estimated effect, result can be interpreted by symmetry.<br><br>",
+
+        "Delta* is ", round(raw_calc$`delta*`, 3), " (assuming no covariates in the baseline model M1),<br>",
+        "The correlation-based delta is ", round(raw_calc$delta_exact, 3), ", with a bias of ", 
+        round(raw_calc$delta_pctbias, 2), "%.<br>",
+        "Note that %bias = (delta* - delta) / delta.<br><br>",
+        
+        "With delta*, the coefficient in the final model will be ", round(raw_calc$eff_x_M3_oster, 3), ".<br>",
+        "With the correlation-based delta, the coefficient will be ", round(raw_calc$eff_x_M3, 3), ".<br><br>"
+       )
     )
     
     # Generate the plot output
