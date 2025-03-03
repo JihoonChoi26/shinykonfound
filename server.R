@@ -10,7 +10,9 @@ library(shinyDarkmode)
 
 if (!requireNamespace("devtools", quietly = TRUE)) install.packages("devtools")
 library(devtools)
-install_github("konfound-project/konfound", ref = "additional_output_list", force = TRUE)
+#install_github("konfound-project/konfound", ref = "additional_output_list", force = TRUE)
+#install_github("JihoonChoi26/konfound", ref = "benchmark_logistic", force = TRUE)
+devtools::install_local("/Users/jihoonchoi/Documents/GitHub/konfound-fork", force = TRUE)
 
 library(konfound)
 ################################################################################
@@ -385,6 +387,56 @@ server <- function(input, output, session) {
                 model_type = "logistic",
                 to_return = "raw_output")
     
+    
+    log_output_plot <- raw_calc$benchmark_plot
+
+    # 3) Determine the message for the plot if no plot is available
+    plot_message <- if (is.null(log_output_plot)) {
+      "No graphical output for this analysis."
+    } else {
+      "Plot is displayed below."
+    }
+    
+    log_output_raw <- 
+      capture.output(
+        pkonfound(as.numeric(input$unstd_beta_nl), 
+                  as.numeric(input$std_error_nl), 
+                  as.numeric(input$n_obs_nl), 
+                  n_covariates = as.numeric(input$n_covariates_nl),
+                  n_treat = as.numeric(input$n_trm_nl),
+                  model_type = "logistic",
+                  to_return = "print")
+      )
+    
+    # Conditional RIR benchmark description
+    benchmark_section <- ""
+    if (raw_calc$invalidate_ob) {
+      # Invalidate scenario: Show RIR benchmark details
+      benchmark_section <- paste0(
+        "<strong>Benchmarking RIR for Logistic Regression</strong><br>",
+        "The benchmark value helps interpret the RIR necessary to invalidate or sustain an inference<br>",
+        "by comparing the change needed to nullify the inference with the changes in the estimated effect<br>",
+        "due to observed covariates.<br><br>",
+        "<em>Benchmark = Bias to change inference / Bias due to observed covariates</em><br><br>",
+        "To calculate this benchmark value, a range of treatment success values is automatically<br>",
+        "generated based on the assumption that the marginals are constant between the implied table<br>",
+        "and the raw unadjusted table. The benchmark value is visualized as a graph, allowing the<br>",
+        "user to interpret how the benchmark changes with hypothesized treatment success values.<br><br>"
+      )
+    } else {
+      # Sustain scenario: No meaningful benchmark
+      benchmark_section <- paste0(
+        "<strong>Benchmarking RIR for Logistic Regression</strong><br>",
+        "The benchmark value helps interpret the RIR necessary to invalidate or sustain an inference<br>",
+        "by comparing the change needed to nullify the inference with the changes in the estimated effect<br>",
+        "due to observed covariates.<br><br>",
+        "<em>Benchmark = Bias to change inference / Bias due to observed covariates</em><br><br>",
+        "The treatment is not statistically significant in the implied table and would also not<br>",
+        "be statistically significant in the raw table (before covariates were added). In this scenario,<br>",
+        "there is no clear interpretation of the benchmark and therefore the benchmark calculation is not reported.<br><br>"
+      )
+    }
+    
     log_output <- 
       HTML(
         paste0(
@@ -420,6 +472,8 @@ server <- function(input, output, session) {
           ", SE = ", round(raw_calc$std_err_final, 3), ", p-value = ", round(raw_calc$p_final, 3), ".<br>",
           "This is based on t = estimated effect / standard error.<br><br>",
           
+          benchmark_section,
+          
           "<strong>See Frank et al. (2021) for a description of the methods.</strong><br><br>",
           
           "<strong>Citation:</strong><br>",
@@ -435,8 +489,12 @@ server <- function(input, output, session) {
       )
     
   # Return a list containing both the raw and print outputs
-  list(text = log_output,
-       plot_message = "No graphical output for this analysis.")
+    list(
+      text = log_output,
+      raw = log_output_raw,
+      plot = log_output_plot,
+      plot_message = plot_message
+    )
    })
   
   
@@ -629,18 +687,24 @@ server <- function(input, output, session) {
 
   #If user presses the results button for logistic models, paste the logistic results
   observeEvent(input$results_pg_di, {
+    
+    # Show the main textual output in print_results1
     output$print_results1 <- renderText({
-      paste(df_log()$text, collapse = "\n")  # Combine text output lines
+      df_log()$text
     })
+    
     output$print_results2 <- renderText({
-      paste(df_log()$text, collapse = "\n")  # Combine text output lines
+      paste(df_log()$raw , collapse = "\n")  # Combine text output lines
     })
-
-    # Render a dummy plot with text message
+    
+    # Render the figure (if available)
     output$fig_results <- renderPlot({
-      message <- df_log()$plot_message
-      plot.new()
-      text(0.5, 0.5, message, cex = 1.5, col = "black", font = 1.8)
+      if (!is.null(df_log()$plot)) {
+        df_log()$plot
+      } else {
+        plot.new()
+        text(0.5, 0.5, df_log()$plot_message, cex = 1.5, col = "black", font = 1.8)
+      }
     })
   })
 
