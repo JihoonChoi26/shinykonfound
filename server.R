@@ -10,7 +10,9 @@ library(shinyDarkmode)
 
 if (!requireNamespace("devtools", quietly = TRUE)) install.packages("devtools")
 library(devtools)
-install_github("konfound-project/konfound", ref = "additional_output_list", force = TRUE)
+#install_github("konfound-project/konfound", ref = "additional_output_list", force = TRUE)
+# just for temporary checking (mostly for logistic model with RIR benchmark)
+install_github("JihoonChoi26/konfound", ref = "benchmark_logistic", force = TRUE)
 
 library(konfound)
 ################################################################################
@@ -162,7 +164,7 @@ server <- function(input, output, session) {
           "(conditioning on all observed covariates in the model; signs are interchangeable).<br>",
           "This is based on a threshold effect of ",
           formatC(critical_r, format = "f", digits = 3),
-          " for statistical significance (alpha = ", alpha, ").<br><br>",
+          " for statistical significance (alpha = 0.05).<br><br>",
           
           "Correspondingly, the impact of an omitted variable (Frank 2000) must be ",
           formatC(rycvGz, format = "f", digits = 3), " × ",
@@ -181,7 +183,7 @@ server <- function(input, output, session) {
           "(conditioning on all observed covariates in the model; signs are interchangeable).<br>",
           "This is based on a threshold effect of ",
           formatC(critical_r, format = "f", digits = 3),
-          " for statistical significance (alpha = ", alpha, ").<br><br>",
+          " for statistical significance (alpha = 0.05).<br><br>",
           
           "Correspondingly, the impact of an omitted variable (Frank 2000) must be ",
           formatC(rycvGz, format = "f", digits = 3), " × ",
@@ -439,6 +441,63 @@ server <- function(input, output, session) {
                 model_type = "logistic",
                 to_return = "raw_output")
     
+    log_output_plot <- raw_calc$benchmark_plot
+    
+    # Determine the message for the plot if no plot is available
+    plot_message <- if (is.null(log_output_plot)) {
+      "No graphical output for this analysis."
+    } else {
+      "Plot is displayed below."
+    }
+    
+    log_output_raw <- 
+      capture.output(
+        pkonfound(as.numeric(input$unstd_beta_nl), 
+                  as.numeric(input$std_error_nl), 
+                  as.numeric(input$n_obs_nl), 
+                  n_covariates = as.numeric(input$n_covariates_nl),
+                  n_treat = as.numeric(input$n_trm_nl),
+                  model_type = "logistic",
+                  to_return = "print")
+      )
+    
+    # Conditional RIR benchmark description
+    benchmark_section <- ""
+    if (raw_calc$invalidate_ob) {
+      # Invalidate scenario: Show RIR benchmark details
+      benchmark_section <- paste0(
+        "<strong>Benchmarking RIR for Logistic Regression</strong><br>",
+        "The benchmark value helps interpret the RIR necessary to nullify an inference by comparing the change<br>",
+        "needed to nullify the inference with the changes in the estimated effect due to observed covariates.<br>",
+        "Currently this feature is available only when the reported results are statistically significant.<br><br>",
+
+        "The benchmark is used to compare the bias needed to nullify the inference with the bias reduction due to<br>",
+        "observed covariates. Specifically, it is the ratio of data changes from implied → transfer table to data<br>",
+        "changes from raw → implied table.<br><br>",
+        
+        "To calculate this benchmark value, a range of treatment success values is automatically generated based on<br>",
+        "the assumption that the marginals are constant between the implied table and the raw unadjusted table.<br>",
+        "The benchmark value is visualized as a graph, allowing the user to interpret how the benchmark changes with<br>",
+        "hypothesized treatment success values.<br><br>",
+        
+        "To calculate a specific benchmark value, locate the number of treatment successes in the raw data on the graph below.<br><br>"
+      )
+    } else {
+      # Sustain scenario: No meaningful benchmark
+      benchmark_section <- paste0(
+        "<strong>Benchmarking RIR for Logistic Regression</strong><br>",
+        "The treatment is not statistically significant in the implied table and would also not be statistically significant<br>",
+        "in the raw table (before covariates were added). In this scenario, we do not yet have a clear interpretation<br>",
+        "of the benchmark, and therefore the benchmark calculation is not reported.<br><br>"
+      )
+    }
+    
+    cond_message <- if (raw_calc$invalidate_ob) {
+      "nullify"
+    } else {
+      "sustain"
+    }
+    
     log_output <- 
       HTML(
         paste0(
@@ -446,18 +505,18 @@ server <- function(input, output, session) {
           "RIR = ", raw_calc$RIR_primary, "<br>",
           "Fragility = ", raw_calc$fragility_primary, "<br><br>",
           
-          "The table below is implied by the parameter estimates and sample sizes you entered:<br>",
-          "<strong><u>User-Entered Table:</u></strong><br>",
+          "You entered: log odds = ", round(raw_calc$est_eff, 3), ", SE = ", round(raw_calc$user_std_err, 3),
+          ", with p-value = ", round(raw_calc$p_start, 3), ".<br>",
+          "The table implied by the parameter estimates and sample sizes you entered:<br>",
+
           knitr::kable(raw_calc$table_start_3x3, format = "html", align = "c",
                        table.attr = "style='width:100%;'",
                        col.names = c("Group", "Failures", "Successes", "Success Rate")), 
-          "<br><br>",
+          "<br>",
           
-          "The reported log odds = ", round(raw_calc$est_eff, 3), ", SE = ", round(raw_calc$user_std_err, 3),
-          ", and p-value = ", formatC(raw_calc$p_start, format = "e", digits = 3), ".<br>",
           "Values in the table have been rounded to the nearest integer. This may cause a small change to the estimated effect for the table.<br><br>",
           
-          "To invalidate the inference that the effect is different from 0 (alpha = 0.050),<br>",
+          "To ", cond_message, " the inference that the effect is different from 0 (alpha = 0.050),<br>",
           "one would need to transfer ", raw_calc$fragility_primary, " data points from treatment success to treatment failure (Fragility = ", raw_calc$fragility_primary, ").<br>",
           "This is equivalent to replacing ", raw_calc$total_RIR, " (", round(raw_calc$RIR_perc, 2), "%) treatment success data points with data points<br>",
           "for which the probability of failure in the entire sample (", round(raw_calc$p_destination, 3), "%) applies (RIR = ", raw_calc$RIR_primary, ").<br><br>",
@@ -468,11 +527,13 @@ server <- function(input, output, session) {
           knitr::kable(raw_calc$table_final_3x3, format = "html", align = "c",
                        table.attr = "style='width:100%;'",
                        col.names = c("Group", "Failures", "Successes", "Success Rate")), 
-          "<br><br>",
+          "<br>",
           
           "The log odds (estimated effect) = ", round(raw_calc$est_eff_final, 3), 
           ", SE = ", round(raw_calc$std_err_final, 3), ", p-value = ", round(raw_calc$p_final, 3), ".<br>",
           "This is based on t = estimated effect / standard error.<br><br>",
+          
+          benchmark_section,
           
           "<strong>See Frank et al. (2021) for a description of the methods.</strong><br><br>",
           
@@ -489,9 +550,13 @@ server <- function(input, output, session) {
       )
     
   # Return a list containing both the raw and print outputs
-  list(text = log_output,
-       plot_message = "No graphical output for this analysis.")
-   })
+    list(
+      text = log_output,
+      raw = log_output_raw,
+      plot = log_output_plot,
+      plot_message = plot_message
+    )
+  })
   
   
 ################################################################################
@@ -690,18 +755,24 @@ server <- function(input, output, session) {
 
   #If user presses the results button for logistic models, paste the logistic results
   observeEvent(input$results_pg_di, {
+    
+    # Show the main textual output in print_results1
     output$print_results1 <- renderText({
-      paste(df_log()$text, collapse = "\n")  # Combine text output lines
+      df_log()$text
     })
+    
     output$print_results2 <- renderText({
-      paste(df_log()$text, collapse = "\n")  # Combine text output lines
+      paste(df_log()$raw , collapse = "\n")  # Combine text output lines
     })
-
-    # Render a dummy plot with text message
+    
+    # Render the figure (if available)
     output$fig_results <- renderPlot({
-      message <- df_log()$plot_message
-      plot.new()
-      text(0.5, 0.5, message, cex = 1.5, col = "black", font = 1.8)
+      if (!is.null(df_log()$plot)) {
+        df_log()$plot
+      } else {
+        plot.new()
+        text(0.5, 0.5, df_log()$plot_message, cex = 1.5, col = "black", font = 1.8)
+      }
     })
   })
 
