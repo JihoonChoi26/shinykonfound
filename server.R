@@ -78,27 +78,47 @@ server <- function(input, output, session) {
                 index = "RIR",
                 to_return = "raw_output")
     
-    linear_output <-
-      HTML(
-        paste0(
-          "<strong>Robustness of Inference to Replacement (RIR):</strong><br>",
-          "RIR = ", raw_calc$RIR_primary, "<br><br>",
-          "To invalidate the inference of an effect using the threshold of ", 
-          round(raw_calc$beta_threshold, 3),
-          " for statistical significance (with null hypothesis = 0 and alpha = 0.05), ", 
-          round(raw_calc$perc_bias_to_change, 3),
-          "% of the (2) estimate would have to be due to bias. This implies that to invalidate the inference one would expect to have to replace ", 
-          raw_calc$RIR_primary, " (", round(raw_calc$perc_bias_to_change, 3), "%) ",
-          "observations with data points for which the effect is 0 (RIR = ", 
-          raw_calc$RIR_primary, ").<br><br>",
-          "See Frank et al. (2013) for a description of the method.<br><br>",
-          "<strong>Citation:</strong><br>",
-          "Frank, K.A., Maroulis, S., Duong, M., and Kelcey, B. (2013). What would it take to change an inference? Using Rubin's causal model to interpret the robustness of causal inferences. <em>Education, Evaluation and Policy Analysis, 35</em>, 437-460.<br><br>",
-          "Accuracy of results increases with the number of decimals reported.<br><br>",
-          "<em>Calculated with konfound R package version </em>", packageVersion("konfound")
-        )
+    # Construct the RIR text output with two scenarios
+    if (abs(input$unstd_beta) > abs(raw_calc$beta_threshold)) {
+      # nullify scenario
+      linear_output <- paste0(
+        "<strong>Robustness of Inference to Replacement (RIR):</strong><br>",
+        "RIR = ", round(raw_calc$RIR_primary, 3), "<br><br>",
+        
+        "To nullify the inference of an effect using the threshold of ", round(raw_calc$beta_threshold, 3), " for a null hypothesis of 0 (alpha = 0.05), ",
+        round(raw_calc$perc_bias_to_change, 3), "% of the (", 
+        round(input$unstd_beta, 3), ") estimate would have to be due to bias.<br>",
+        "This implies we must replace ", round(raw_calc$RIR_primary, 3), " observations (", 
+        round(raw_calc$perc_bias_to_change, 3), "%) with data points for which the effect is 0<br>",
+        "(RIR = ", round(raw_calc$RIR_primary, 3), ").<br><br>"
       )
+    } else {
+      # sustain scenario
+      linear_output <- paste0(
+        "<strong>Robustness of Inference to Replacement (RIR):</strong><br>",
+        "RIR = ", round(raw_calc$RIR_primary, 3), "<br><br>",
+        
+        "To reach the threshold value (", round(raw_calc$beta_threshold, 3), ") for significance with a null hypothesis of 0 (alpha = 0.05), ",
+        round(raw_calc$perc_bias_to_change, 3), "% of the (", 
+        round(input$unstd_beta, 3), ") estimate would have to be due to bias.<br>",
+        "This implies we must replace ", round(raw_calc$RIR_primary, 3), " observations (", 
+        round(raw_calc$perc_bias_to_change, 3), "%) with data points for which the effect is ",
+        round(raw_calc$beta_threshold, 3), " to achieve significance<br>",
+        "(RIR = ", round(raw_calc$RIR_primary, 3), ").<br><br>"
+      )
+    }
     
+    # Add citation & final note
+    linear_output <- paste0(
+      linear_output,
+      "See Frank et al. (2013) for a description of the method.<br><br>",
+      "<strong>Citation:</strong><br>",
+      "Frank, K.A., Maroulis, S., Duong, M., and Kelcey, B. (2013).<br>",
+      "<em>What would it take to change an inference? Using Rubin's causal model to interpret the robustness of causal inferences.</em><br>",
+      "Education, Evaluation and Policy Analysis, 35, 437-460.<br><br>",
+      "Accuracy of results increases with the number of decimals reported.<br><br>",
+      "<em>Calculated with konfound R package version </em>", packageVersion("konfound")
+    )
     
 
 
@@ -125,30 +145,64 @@ server <- function(input, output, session) {
                   index = "IT",
                   to_return = "raw_output")
       
-      linear_output <-
-        HTML(
-          paste(
-            "<strong>Impact Threshold for a Confounding Variable (ITCV):</strong><br><br>",
-            "The minimum impact of an omitted variable to invalidate an inference for a null hypothesis of an effect of nu (0) is based on a correlation of", 
-            round(raw_calc$rxcvGz, 3), 
-            "with the outcome and", 
-            round(raw_calc$rxcvGz, 3), 
-            "with the predictor of interest (conditioning on all observed covariates in the model; signs are interchangeable). This is based on a threshold effect of a threshold effect of", 
-            round(raw_calc$critical_r, 2),
-            "for statistical significance (alpha = 0.05).<br><br>", 
-            "Correspondingly, the impact of an omitted variable (as defined in Frank [2000]) must be", 
-            round(raw_calc$rxcvGz, 3), "X", round(raw_calc$rxcvGz, 3), "=", 
-            round(raw_calc$rxcvGz * raw_calc$rxcvGz, 3),
-            "to invalidate an inference for a null hypothesis of an effect of nu (0).<br><br>",
-            "For calculation of unconditional ITCV using pkonfound(), additionally include the <em>R</em><sup>2</sup>, <em>sd</em><sub>x</sub>, and <em>sd</em><sub>y</sub> as input, and request raw output.<br><br>",
-            "See Frank (2000) for a description of the method.<br><br>",
-            "<strong>Citation:</strong><br>",
-            "Frank, K. (2000). Impact of a confounding variable on the inference of a regression coefficient. <em>Sociological Methods and Research, 29</em>(2), 147-194.<br><br>",
-            "Accuracy of results increases with the number of decimals reported.<br><br>",
-            "The ITCV analysis was originally derived for OLS standard errors. If the standard errors reported in the table were not based on OLS, some caution should be used to interpret the ITCV.<br><br>",
-            "<em>Calculated with konfound R package version</em>", packageVersion("konfound")
-          )
+      # Extract key values from raw_calc
+      obs_r <- raw_calc$obs_r        
+      critical_r <- raw_calc$critical_r    
+      rycvGz <- raw_calc$rycvGz       
+      rxcvGz <- raw_calc$rxcvGz        
+
+      if (abs(obs_r) > abs(critical_r)) {
+        linear_output <- paste0(
+          "<strong>Impact Threshold for a Confounding Variable (ITCV):</strong><br>",
+          
+          "The minimum impact of an omitted variable needed to nullify an inference for a null hypothesis of 0<br>",
+          "is based on correlations of ", 
+          formatC(rycvGz, format = "f", digits = 3), " with the outcome and ",
+          formatC(rxcvGz, format = "f", digits = 3), " with the predictor of interest<br>",
+          "(conditioning on all observed covariates in the model; signs are interchangeable).<br>",
+          "This is based on a threshold effect of ",
+          formatC(critical_r, format = "f", digits = 3),
+          " for statistical significance (alpha = ", alpha, ").<br><br>",
+          
+          "Correspondingly, the impact of an omitted variable (Frank 2000) must be ",
+          formatC(rycvGz, format = "f", digits = 3), " × ",
+          formatC(rxcvGz, format = "f", digits = 3), " = ",
+          formatC(rycvGz * rxcvGz, format = "f", digits = 3),
+          " to <em>nullify</em> the inference.<br><br>"
         )
+      } else {
+        linear_output <- paste0(
+          "<strong>Impact Threshold for a Confounding Variable (ITCV):</strong><br>",
+          
+          "The maximum impact of an omitted variable needed to sustain an inference for a null hypothesis of 0<br>",
+          "is based on correlations of ", 
+          formatC(rycvGz, format = "f", digits = 3), " with the outcome and ",
+          formatC(rxcvGz, format = "f", digits = 3), " with the predictor of interest<br>",
+          "(conditioning on all observed covariates in the model; signs are interchangeable).<br>",
+          "This is based on a threshold effect of ",
+          formatC(critical_r, format = "f", digits = 3),
+          " for statistical significance (alpha = ", alpha, ").<br><br>",
+          
+          "Correspondingly, the impact of an omitted variable (Frank 2000) must be ",
+          formatC(rycvGz, format = "f", digits = 3), " × ",
+          formatC(rxcvGz, format = "f", digits = 3), " = ",
+          formatC(rycvGz * rxcvGz, format = "f", digits = 3),
+          " to <em>sustain</em> the inference.<br><br>"
+        )
+      }
+      
+      # Add final disclaimers, references, etc.
+      linear_output <- paste0(
+        linear_output,
+        "See Frank (2000) for a description of the method.<br><br>",
+        "<strong>Citation:</strong><br>",
+        "Frank, K. (2000). Impact of a confounding variable on the inference of a regression coefficient.<br>",
+        "<em>Sociological Methods and Research, 29</em>(2), 147-194.<br><br>",
+        "Accuracy of results increases with the number of decimals reported.<br><br>",
+        "The ITCV analysis was originally derived for OLS standard errors. If your standard errors are not OLS-based,<br>",
+        "interpret the ITCV with caution.<br><br>",
+        "<em>Calculated with konfound R package version </em>", packageVersion("konfound")
+      )
       
       
     }
@@ -489,6 +543,13 @@ server <- function(input, output, session) {
       return(p)
     }
     
+    # conditionally set the phrase for RIR
+    change <- if (!is.null(raw_calc$p_start) && raw_calc$p_start < 0.05) {
+      "To nullify the inference that the effect is different from 0 (alpha = 0.05), one would need to transfer "
+    } else {
+      "To sustain the inference that the effect is different from 0 (alpha = 0.05), one would need to transfer "
+    }
+    
     twobytwo_output <-
       HTML(
         paste0(
@@ -497,7 +558,7 @@ server <- function(input, output, session) {
           "Fragility = ", raw_calc$fragility_primary, "<br><br>",
           "This function calculates the number of data points that would have to be replaced with zero effect data points (RIR) to invalidate the inference made about the association between the rows and columns in a 2x2 table.<br><br>", 
           "One can also interpret this as switches (Fragility) from one cell to another, such as from the treatment success cell to the treatment failure cell.<br><br>",
-          "To sustain an inference that the effect is different from 0 (alpha = 0.05), one would need to transfer ",
+          change,
           raw_calc$fragility_primary,
           " data points from treatment failure to treatment success as shown, from the User-Entered Table to the Transfer Table (Fragility = ",
           raw_calc$fragility_primary,
